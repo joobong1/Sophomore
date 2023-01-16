@@ -1,0 +1,535 @@
+---
+title: "기말 프로젝트"
+author: "20173218 김주형_코딩, 20187115 조금주_코딩, "
+date: '2020-12-01'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# Galton은 부모와 자식들 간의 키의 상관관계를 분석해 본 결과, 다음과 같은 재미있는 관계를 찾아내었다. 즉, 특이하게 큰 부모의 자식들은 대게 크긴 하되 부모들보다는 대부분 작았고, 특이하게 작은 부모들의 자식들은 대게 작긴 하되 부모들보다는 대부분 크다는 사실이다. 이러한 경향은 사람들의 키가 평균키로 회귀하려는 경향이 있음을 말하는 것인데, 바로 이 연구에서부터 회귀분석이라는 용어가 사용되게 되었다.(즉 부모의 키가 크(작)더라도 그 자식들은 결국 보통키로 회귀(돌아간다)한다는 뜻이다.) 단, 키의 단위는 inch 이다. (1 inch = 2.54 cm)
+```
+
+
+# 폰트 불러오기
+```{r}
+library(showtext)
+showtext_auto()
+font_add_google('Libre Baskerville', 'LB')
+
+```
+
+
+# 데이터 불러오기
+```{r}
+library(HistData)
+
+data("GaltonFamilies")
+
+G <- GaltonFamilies
+```
+
+
+# 아이 성별 구분
+```{r}
+# 남자아이 키
+male <- G[G$gender == "male", ]
+str(male)
+
+# 여자아이 키
+female <- G[G$gender == "female", ]
+str(female)
+```
+
+
+# 부모님 키와 아이의 키 - Histogram
+```{r}
+# Histogram
+library(ggplot2)
+library(gridExtra)
+library(ggExtra)
+library(car)
+
+# 아버지 키
+gg_f_h <- ggplot(data = G, aes(x = father)) +
+  geom_histogram(binwidth = 1, fill = "lightblue",
+               colour = "black") +
+  geom_vline(xintercept = mean(G$father), linetype = "dashed", color = "#FFAA00", lwd = 1) +
+  ggtitle("Histogram of \n The Father's Height") + 
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+# 어머니 키
+gg_m_h <- ggplot(data = G, aes(x = mother)) +
+  geom_histogram(binwidth = 1, fill = "pink",
+               colour = "black") +
+  geom_vline(xintercept = mean(G$mother), linetype = "dashed", color = "#FFAA00", lwd = 1) +
+  ggtitle("Histogram of \n The mother's Height") + 
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+# 남자아이 키
+gg_m_c_mid <- ggplot(data = male, aes(x = childHeight)) +
+  geom_histogram(binwidth = 1, fill = "lightblue",
+               colour = "black") +
+  geom_vline(xintercept = mean(male$childHeight), linetype = "dashed", color = "#FFAA00", lwd = 1) +
+  ggtitle("Histogram of \n The Male childHeight") + 
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+# 여자아이 키
+gg_f_c_mid <- ggplot(data = female, aes(x = childHeight)) +
+  geom_histogram(binwidth = 1, fill = "pink",
+               colour = "black") +
+  geom_vline(xintercept = mean(female$childHeight), linetype = "dashed", color = "#FFAA00", lwd = 1) +
+  ggtitle("Histogram of \n The Female childHeight") + 
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+grid.arrange(gg_f_h, gg_m_h, gg_m_c_mid, gg_f_c_mid, nrow = 2, ncol = 2)
+```
+
+
+```{r}
+# 아버지 키 평균
+mean(G$father) # 단위는 inch 이다. 69.19711 in = 175.76 cm
+# 어머니 키 평균
+mean(G$mother) # 64.08929 in = 162.79 cm
+# 남자아이 키 평균
+mean(male$childHeight) # 69.2341 in = 175.85 cm
+# 여자아이 키 평균
+mean(female$childHeight) # 64.10397 in = 162.82 cm
+```
+
+
+# 부모님의 평균 키와 아이들의 키
+```{r}
+# 부모님
+gg_p_mid <- ggplot(data = G, aes(x = midparentHeight)) +
+  geom_histogram(binwidth = 0.5,
+                 fill = "grey",
+                 colour = "black") +
+  geom_vline(xintercept = mean(G$midparentHeight), 
+             linetype = "dashed", 
+             color = "#FFAA00",
+             lwd= 1) +
+  ggtitle("Histogram of \n The midparentHeight") +
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+# 아이들
+gg_c_mid <- ggplot(data = G, aes(x = childHeight)) +
+  geom_histogram(binwidth = 1, 
+                 fill = "grey",
+                 colour = "black") +
+  geom_vline(xintercept = mean(G$childHeight), 
+             linetype = "dashed", 
+             color = "#FFAA00", 
+             lwd = 1) +
+  ggtitle("Histogram of \n The childHeight") +
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+
+# 정규분포
+n1 <- ggplot(data = G, aes(x = midparentHeight)) +
+  geom_histogram(aes(y = ..density..),
+                 binwidth = 0.5,
+                 fill = "darkgrey",
+                 alpha = 0.3) +
+  geom_line(aes( y = dnorm(midparentHeight,
+                           mean(midparentHeight),
+                           sd(midparentHeight))), 
+            color = "red",
+            linetype=1 ,
+            lwd = 1) +
+  geom_line(aes(y = dnorm(midparentHeight,
+                          mean(midparentHeight), 1)), 
+            color = "blue",
+            linetype=5,
+            lwd = 1) +
+  ggtitle("Histogram of The midparentHeight \n -Normal distribution-")+
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "grey20")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+n2<- ggplot(data = G, aes(x = childHeight)) +
+  geom_histogram(aes(y =  ..density..),
+                 binwidth = 1, 
+                 fill = "darkgrey",
+                 alpha =0.3) +
+  geom_line(aes( y = dnorm(childHeight,
+                           mean(childHeight),
+                           sd(childHeight))), 
+            color = "red",
+            linetype=1 ,
+            lwd = 1) +
+  geom_line(aes(y = dnorm(childHeight,
+                          mean(childHeight),1)), 
+            color = "blue",
+            linetype=5,
+            lwd = 1) +
+  ggtitle("Histogram of The midparentHeight \n -Normal distribution-")+
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "grey20")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+grid.arrange(gg_p_mid, gg_c_mid, n1, n2 ,nrow = 2, ncol = 2)
+```
+
+
+
+```{r}
+# 통계량 분석 후, 그래프 분석을 실시.
+```
+
+```{r}
+# 두 연속형 변수 상관관계
+
+# 통계량 분석
+# 1.공분산(covaiance)
+# 2.상관계수(correlation coefficient)
+
+# 그래프 분석
+# 1.산점도(scatter plot)
+# 2.산점도 행렬(scatter matrix plot)
+# 3.상관계수행렬(correlation coefficient plot)
+``` 
+
+
+# 부모님의 키와 아이의 키의 관계 - 통계량 분석 1
+```{r}
+# 1.공분산
+# 아버지와 아들
+cov_f_m <- cov(male$father, male$childHeight)
+cov_f_m
+```
+```{r}
+# 아버지와 딸
+cov_f_f <- cov(female$father, female$childHeight)
+cov_f_f
+```
+```{r}
+# 어머니와 아들
+cov_m_m <- cov(male$mother, male$childHeight)
+cov_m_m
+```
+```{r}
+# 어머니와 딸
+cov_m_f <- cov(female$mother, female$childHeight)
+cov_m_f
+```
+```{r}
+# 부모님의 평균과 자식들
+cov_p_c <- cov(G$midparentHeight, G$childHeight)
+cov_p_c
+```
+```{r}
+# 공분산이 모두 양수이므로 두 변수 간의 상관관계는 상승하는 경향이 있다.
+```
+
+
+# 부모님의 키와 아이의 키의 관계 - 통계량 분석 2
+```{r}
+# 상관계수 - 공분산의 표준화
+cor.test(male$father, male$childHeight) # 아버지와 아들
+```
+```{r}
+cor.test(female$father, female$childHeight) # 아버지와 딸
+```
+```{r}
+cor.test(male$mother, male$childHeight) # 어머니와 아들
+```
+```{r}
+cor.test(female$mother, female$childHeight) # 어머니와 딸
+```
+```{r}
+cor.test(G$midparentHeight, G$childHeight) # 부모님의 평균과 자식들
+```
+
+
+# 부모님의 키와 아이의 키와 관계 - 그래프 분석 1
+```{r}
+# 아버지와 아들, 어머니와 딸, 부모님의 평균과 자식들의 키에 대한 산점도(scatter plot) 그리기
+```
+
+```{r}
+# 아버지의 키(father)와 아들의 키의 관계
+gg_f_mc <- ggplot(data = male, aes(x = father, y = childHeight,
+                        color = gender)) +
+  geom_point(size = 3, color = "lightblue") + stat_smooth(method = "lm") +
+  ggtitle("The Male Child's height \n for his father's height") +
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue"),
+         legend.position = c(0.9, 0.2)) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+ 
+# 아버지의 키(father)와 딸의 키의 관계
+gg_f_fc <- ggplot(data = female, aes(x = father, y = childHeight,
+                        color = gender)) +
+  geom_point(size = 3, color = "burlywood") + stat_smooth(method = "lm") +
+  ggtitle("The Female Child's height \n for her father's height")+
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue"),
+        legend.position = c(0.9, 0.2)) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+grid.arrange(gg_f_mc, gg_f_fc, nrow = 1, ncol = 2)
+```
+
+```{r}
+# 어머니의 키(mother)와 아들의 키의 관계
+gg_m_mc <- ggplot(data = male, aes(x = mother, y = childHeight,
+                        color = gender)) +
+  geom_point(size = 3, color = "burlywood") + stat_smooth(method = "lm") +
+  ggtitle("The Male Child's height \n for his mother's height") +
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue"),
+         legend.position = c(0.9, 0.2)) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+# 어머니의 키(mother)와 딸의 키의 관계
+gg_m_fc <- ggplot(data = female, aes(x = mother, y = childHeight,
+                        color = gender)) +
+  geom_point(size = 3, color = "pink") + stat_smooth(method = "lm") +
+  ggtitle("The Female Child's height \n for her mother's height") +
+  theme(plot.title = element_text(family = "LB",
+                                  size = 24,
+                                  face = "bold",
+                                  hjust = 0.5,
+                                  color = "Navy Blue"),
+         legend.position = c(0.9, 0.2)) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+
+grid.arrange(gg_m_mc, gg_m_fc, nrow = 1, ncol = 2)
+```
+
+
+```{r}
+# 남, 여자아이 합치기
+ggplot(data = G, aes(x = midparentHeight, y = childHeight,
+                        color = gender)) +
+  geom_point(size = 3, color = "burlywood") + stat_smooth(method = "lm") +
+  ggtitle("The Child's Height \n For The Parent's Height")+
+  theme(plot.title = element_text(family = "LB", size = 24, face = "bold",
+                                  hjust = 0.5,color="Navy Blue")) +
+  theme(axis.title = element_text(family = "serif",
+                                  face = "bold",
+                                  size = 16,
+                                  color = "grey15"))
+```
+
+
+# 부모에 의한 자식의 키 예측(회귀식 추정)
+
+```{r}
+# 아버지와 아들
+```
+```{r}
+# 회귀선
+m1 <- lm(childHeight ~ father, male) # 아버지와 아들
+
+# 이상치 제거
+outlierTest(m1)
+out1 <- subset(male, rownames(male) != "293" & rownames(male) != "487")
+
+# 정규성 확인
+qqPlot(m1) # 그래프 분석
+
+# 회귀분석
+summary(m1)
+```
+```{r}
+# yhat = 38.36258 + 0.44652 * x   # <- 회귀식 (단위: inch)
+# |t|통계량 Pr(>|t|) 값(2e-16)이 유의수준 0.05보다 작기 때문에 통계적으로 유의함.
+# 잔차 표준오차(Residual standard error): 2.416
+# 결정계수(Multiple R-Squared): 0.154 아버지의 키가 아들의 키에 대하여 15.4% 설명할 수 있다.
+# 모양이 적합한지를 보기 위해 F-검정통계량(F-statistic)의 값(87.17)을 보면 유의수준 0.05보다 작기 때문에 모양이 유의하다고 할 수 있다.
+# 즉, 아버지의 키는 아들의 키의 약한 영향을 미친다고 할 수 있다.
+```
+
+
+```{r}
+# 아버지와 딸
+```
+```{r}
+# 회귀선
+m2 <- lm(childHeight ~ father, female) # 아버지와 딸
+
+# 이상치 제거
+outlierTest(m2)
+out2 <- subset(female, rownames(female) != "702")
+
+# 정규성 확인
+qqPlot(m2) # 그래프 분석
+
+# 회귀분석
+summary(m2)
+```
+```{r}
+# yhat = 37.69497 + 0.3813 * x   # <- 회귀식 (단위: inch)
+# |t|통계량 Pr(>|t|) 값(2e-16)이 유의수준 0.05보다 작기 때문에 통계적으로 유의함.
+# 잔차 표준오차(Residual standard error): 2.131
+# 결정계수(Multiple R-Squared): 0.1836 아버지의 키가 딸의 키에 대하여 18.36% 설명할 수 있다.
+# 모양이 적합한지를 보기 위해 F-검정통계량(F-statistic)의 값(101.4)을 보면 유의수준 0.05보다 작기 때문에 모양이 유의하다고 할 수 있다.
+# 즉, 아버지의 키는 딸의 키의 약한 영향을 끼친다고 할 수 있다.
+```
+
+
+```{r}
+# 어머니와 아들
+```
+```{r}
+# 회귀선
+m3 <- lm(childHeight ~ mother, male) # 어머니와 아들
+
+# 이상치 제거
+outlierTest(m3)
+out3 <- subset(male, rownames(male) != "293")
+
+# 정규성 확인
+qqPlot(m3) # 그래프 분석
+
+# 회귀분석
+summary(m3)
+```
+```{r}
+# yhat = 45.85804 + 0.36506 * x   # <- 회귀식 (단위: inch)
+# |t|통계량 Pr(>|t|) 값(2e-16, 3.84e-13)이 유의수준 0.05보다 작기 때문에 통계적으로 유의함.
+# 잔차 표준오차(Residual standard error): 2.486
+# 결정계수(Multiple R-Squared): 10.43 어머니의 키가 아들의 키에 대하여 10.43% 설명할 수 있다.
+# 모양이 적합한지를 보기 위해 F-검정통계량(F-statistic)의 값(55.8)을 보면 유의수준 0.05보다 작기 때문에 모양이 유의하다고 할 수 있다.
+# 즉, 어머니의 키는 아들의 키의 약한 영향을 끼친다고 할 수 있다.
+```
+
+
+```{r}
+# 어머니와 딸
+```
+```{r}
+# 회귀선
+m4 <- lm(childHeight ~ mother, female) # 어머니와 딸
+
+# 이상치 제거
+outlierTest(m4)
+out4 <- subset(female, rownames(female) != "817")
+
+# 정규성 확인
+qqPlot(m4) # 그래프 분석
+
+# 회귀분석
+summary(m4)
+```
+```{r}
+# yhat = 43.68897 + 0.31824 * x   # <- 회귀식 (단위: inch)
+# |t|통계량 Pr(>|t|) 값(2e-16, 3.22e-11)이 유의수준 0.05보다 작기 때문에 통계적으로 유의함.
+# 잔차 표준오차(Residual standard error): 2.246
+# 결정계수(Multiple R-Squared): 0.09313 아버지의 키가 딸의 키에 대하여 9.313% 설명할 수 있다.
+# 모양이 적합한지를 보기 위해 F-검정통계량(F-statistic)의 값(46.31)을 보면 유의수준 0.05보다 작기 때문에 모양이 유의하다고 할 수 있다.
+# 즉, 어머니의 키는 딸의 키의 약한 영향을 끼친다고 할 수 있다.
+```
+
+
+```{r}
+# 부모님의 평균과 자식들
+```
+```{r}
+# 회귀선
+m5 <- lm(childHeight ~ midparentHeight, G) # 부모님의 평균과 자식들
+
+# 이상치 제거
+outlierTest(m5)
+out5 <- subset(G, rownames(G) != "293")
+
+# 정규성 확인
+qqPlot(m5) # 그래프 분석
+
+# 회귀 분석
+summary(m5)
+```
+```{r}
+# yhat = 22.63624 + 0.63736 * x   # <- 회귀식 (단위: inch)
+# |t|통계량 Pr(>|t|) 값(1.39e-07, 2e-16)이 유의수준 0.05보다 작기 때문에 통계적으로 유의함.
+# 잔차 표준오차(Residual standard error): 3.392
+# 결정계수(Multiple R-Squared): 0.103 아버지의 키가 딸의 키에 대하여 10.3% 설명할 수 있다.
+# 모양이 적합한지를 보기 위해 F-검정통계량(F-statistic)의 값(107)을 보면 유의수준 0.05보다 작기 때문에 모양이 유의하다고 할 수 있다.
+# 즉, 부모님의 키는 자식의 키의 약한 영향을 끼친다고 할 수 있다.
+```
+

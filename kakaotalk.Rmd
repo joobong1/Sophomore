@@ -1,0 +1,186 @@
+---
+title: "기말 프로젝트"
+author: "데이터과학융합스쿨 20173218 김주형"
+date: '2020 12-07'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# library
+library(knitr)
+library(tm) # 연관성 검사 결과값을 시각화하기 위한 그래프
+library(qgraph) # 연관성 검사 결과값을 시각화하기 위한 그래프
+library(qdapRegex) # 
+library(KoNLP) # 한글 형태소 분석
+library(stringr) # Regexp를 하기 위해서 한글을 문자별로, 단어별로 잘라내고 바꾸는 일을 담당
+library(wordcloud) # 워드클라우드
+library(wordcloud2)
+library(RColorBrewer) # 워드클라우드 색깔을 예쁘게 해 주는 걸로 알고 있음
+library(NIADic)# KoNLP의 한글사전 최신판. SejongDic보다 단어량도 많고 정확도도 높다.
+library(googleVis) # 차트 그리기
+```
+
+
+```{r}
+# 카카오톡 대화 불러오기
+```
+```{r}
+text <- file("대화.txt", encoding = 'UTF-8')
+kakaotalk = readLines(text, encoding = 'UTF-8')
+head(kakaotalk)
+kakaotalk <- kakaotalk[-1:-3] # 필요없는 부분 제거
+kakaotalk <- str_replace_all(kakaotalk, '핸드폰에 저장한 상대방 이름', '본명')
+```
+
+
+```{r}
+# 누가 더 많이 톡을 하는가?
+```
+```{r}
+me <- length(kakaotalk[grep("\\[나", kakaotalk)])
+partner <- length(kakaotalk[grep("\\[상대방", kakaotalk)])
+
+# data.frame으로 변환
+volume <- c(me, partner)  # 카톡량
+name <- c('나', '상대방')  # 이름
+kakao_df <- data.frame(name, volume)  # 카톡 data.frame으로 변환
+str(kakao_df)
+
+# 시각화
+pie <- gvisPieChart(kakao_df, options = list(width = 400, height = 300))
+
+header <- pie$html$header
+header <- gsub("charset = UTF-8", "charset = EUC-KR", header)
+pie$html$header <- header
+
+plot(pie)
+```
+
+
+```{r}
+# 오전과 오후 중에 언제 더 많은 톡을 하는가?
+```
+```{r}
+am <- length(kakaotalk[grep("\\[오전", kakaotalk)])  # 오전
+pm <- length(kakaotalk[grep("\\[오후", kakaotalk)])  # 오후
+
+volume2 <- c(am, pm)
+name2 <- c('오전', '오후')
+time_df <- data.frame(name, volume2)
+str(time_df)
+
+# 시각화
+pie1 <- gvisPieChart(time_df, options = list(width = 400, height = 300))
+
+header <- pie1$html$header
+header <- gsub("charset = UTF-8", "charset = EUC-KR", header)
+pie1$html$header <- header
+
+plot(pie1)
+```
+
+
+```{r}
+# 분석을 위한 데이터 전처리
+```
+```{r}
+prep <- str_replace_all(kakaotalk, "이모티콘", "") %>%   # 이모티콘 없애기
+  str_replace_all("\\[오후", "") %>%   # 오후 지우기
+  str_replace_all("\\[오전", "") %>%   # 오전 지우기
+  str_replace_all("[ㄱ-ㅎ]+", "") %>%   # 자음 없애기
+  str_replace_all("\\[나", "") %>%   # 대화방 사람 이름 없애기(나)
+  str_replace_all("\\[상대방", "") %>%   # 대화방 사람 이름 없애기(사촌형)
+  str_replace_all("\\[|\\]", "") %>%   # 카톡 텍스트 데이터의 대괄호 지우기
+  str_replace_all("[0-9]+:[0-9]+\\]", "") %>%   # 모든 시간 없애기 
+  str_replace_all("사진", "") %>%   # 사진 없애기
+  str_replace_all("[가-힣]요", "") %>%   # txt데이터가 요일별로 나눠져 있기 때문
+  str_replace_all("년|월|일", "") %>%   # 연월일 지우기
+  str_replace_all("[0-9]+", "") %>%   # 숫자 지우기
+  str_replace_all("(http).+(\\w)", "") %>%   # 링크 지우기
+  str_replace_all(",+", "") %>%   # 문장부호 지우기
+  as.character()
+head(prep)
+```
+
+
+```{r}
+# 명사 추출
+noun1 <- sapply(prep, extractNoun, USE.NAMES = F) %>% unlist()
+head(noun1)
+noun <- Filter(function(prep){nchar(prep) >= 2}, noun1)   # 두음절 이상의 단어만 추출
+head(noun)
+
+nouns <- sort(table(noun), decreasing = T)
+
+# 명사 빈도
+wordFreq <- table(noun)
+head(wordFreq)
+
+# 명사 빈도 50순위
+wordFreq_top <- head(sort(wordFreq, decreasing = T), 50)
+head(wordFreq_top)
+
+print(wordFreq_top)
+```
+
+
+```{r}
+# 워드클라우드
+```
+```{r}
+wordcloud2(nouns)
+
+pal2 <- brewer.pal(8, "Dark2")
+pal <- brewer.pal(12, 'Set3')
+pal <- pal[-c(1:2)]
+
+png("wordcloud.png", width = 400, height = 300)
+wordcloud(names(wordFreq_top),
+          freq = wordFreq_top,
+          random.order = F,
+          rot.per = 0,
+          col= pal)
+```
+
+
+```{r}
+# qgraph
+```
+```{r}
+# 명사만 가져오기
+tt <- paste(unlist(SimplePos22(prep)))
+allnoun <- str_match_all(tt, "[가-힣]+/[N][C]|[가-힣]+/[N][Q]+") %>% unlist()
+N <- str_replace_all(allnoun, "/[N][C]", "") %>%
+  str_replace_all("/[N][Q]", "") %>% unlist()   # 명사로 추출된 단어들의 분류표인 /NC, /NQ 등을 제거한다.
+
+CorpusNC <- Corpus(VectorSource(N))
+myDtm <- TermDocumentMatrix(CorpusNC, control = list(wordLengths = c(4, 10),
+                                                     removePunctuation = T,
+                                                     removeNumbers = T,
+                                                     weighting = weightBin))
+Encoding(myDtm$dimnames$Terms) = "UTF-8"
+
+# 확인
+findFreqTerms(myDtm, lowfreq = 10)
+
+myDtmM <- as.matrix(myDtm) # 행렬로 변환
+myrowDtmM <- rowSums(myDtmM)
+myDtmM.order <- myrowDtmM[order(myrowDtmM, decreasing = T)]
+freq.wordsNC <- myDtmM.order[1:20] ##sample(myDtmM.order[myDtmM.order > 5], 20,replace=F)인걸 이거로 바꿈
+freq.wordsNC <- as.matrix(freq.wordsNC)
+freq.wordsNC
+co.matrix <- freq.wordsNC %*% t(freq.wordsNC)
+
+# qgraph
+qgraph(co.matrix,
+       labels = rownames(co.matrix),
+       diag = F,
+       layout = 'spring',
+       vsize = log(diag(co.matrix)))
+```
+
